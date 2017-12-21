@@ -1,30 +1,33 @@
 <?php
-if (PHP_SAPI == 'cli-server') {
-    // To help the built-in PHP dev server, check if the request was actually for
-    // something which should probably be served as a static file
-    $url  = parse_url($_SERVER['REQUEST_URI']);
-    $file = __DIR__ . $url['path'];
-    if (is_file($file)) {
-        return false;
-    }
-}
+use \Psr\Http\Message\ServerRequestInterface as Request;
+use \Psr\Http\Message\ResponseInterface as Response;
 
-require __DIR__ . '/../vendor/autoload.php';
+require '../vendor/autoload.php';
 
-session_start();
+$app = new \Slim\App;
 
-// Instantiate the app
-$settings = require __DIR__ . '/../src/settings.php';
-$app = new \Slim\App($settings);
 
-// Set up dependencies
-require __DIR__ . '/../src/dependencies.php';
+// Get container
+$container = $app->getContainer();
 
-// Register middleware
-require __DIR__ . '/../src/middleware.php';
+// Register component on container
+$container['view'] = function ($container) {
+    $view = new \Slim\Views\Twig('../templates', [
+        'cache' => 'path/to/cache'
+    ]);
+    
+    // Instantiate and add Slim specific extension
+    $basePath = rtrim(str_ireplace('index.php', '', $container['request']->getUri()->getBasePath()), '/');
+    $view->addExtension(new Slim\Views\TwigExtension($container['router'], $basePath));
 
-// Register routes
-require __DIR__ . '/../src/routes.php';
+    return $view;
+};
 
-// Run app
+
+// Render Twig template in route
+$app->get('/', function ($request, $response) {
+    return $this->view->render($response, 'home.html');
+})->setName('home');
+
+
 $app->run();
